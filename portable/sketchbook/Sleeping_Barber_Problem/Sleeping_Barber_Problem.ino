@@ -2,45 +2,40 @@
 #include "FreeRTOS_AVR.h"
 #include "basic_io_avr.h"
 
-#define CHAIRS 2
-#define CUSTOMERS 4
+#define cadeira 2
+#define cliente 4
 
-const TickType_t halfSec = 1000 / portTICK_PERIOD_MS;
+const TickType_t umSegundo = 1000 / portTICK_PERIOD_MS;
 
-portSHORT customersWatting;
+uint8_t clienteEsperando;
 
-SemaphoreHandle_t semCustomers, semBarber, semMutex;
+SemaphoreHandle_t semCliente, semBarbeiro, semMutex;
 
-void barberTask(void* barberArgs);
-//void customerTask(void* customerArgs);
-void customerProcedure(void* args);
+void barbeiroTask(void* barbeiro);
+//void customerTask(void* cliente);
+void clienteTask(void* clienteT);
 
 void setup() {
   Serial.begin(9600);
 
-  if (xTaskCreate(barberTask, "Barber", 100, NULL, 1, NULL) == pdFAIL) {
-    vPrintString("Problem with barberTask create.\n");
+  if (xTaskCreate(barbeiroTask, "Barbeiro", 100, NULL, 1, NULL) == pdFAIL) {
+    vPrintString("Houve problema de criação no barbeiroTask.\n");
     for (;;) {}
   }
 
-  for (portSHORT i = 0;  i < CUSTOMERS; i++) {
-    if (xTaskCreate(customerProcedure, "Customer", 100, NULL, 1, NULL) == pdFAIL) {
-      vPrintString("Problem with customerProcedure create.\n");
+  for (portSHORT i = 0;  i < cliente; i++) {
+    if (xTaskCreate(clienteTask, "cliente", 100, NULL, 1, NULL) == pdFAIL) {
+      vPrintString("Houve problema de criação de clienteTask.\n");
     }
   }
 
-  //  if (xTaskCreate(customerTask, "Custom", 400, NULL, 1, NULL) == pdFAIL) {
-  //    vPrintString("Problem with customerTask create\n");
-  //    for (;;) {}
-  //  }
-
-  semCustomers = xSemaphoreCreateCounting(CHAIRS, 0);
-  semBarber = xSemaphoreCreateBinary();
+  semCliente = xSemaphoreCreateCounting(cadeira, 0);
+  semBarbeiro = xSemaphoreCreateBinary();
   semMutex = xSemaphoreCreateMutex();
-  customersWatting = 0;
+  clienteEsperando = 0;
 
-  if (semCustomers == NULL || semBarber == NULL || semMutex == NULL) {
-    vPrintString("Problem with semaphores create\n");
+  if (semCliente == NULL || semBarbeiro == NULL || semMutex == NULL) {
+    vPrintString("Houve problema na criação do semáfaro.\n");
     for (;;) {}
   }
 
@@ -50,61 +45,41 @@ void setup() {
   for (;;) {}
 }
 
-void barberTask(void* barberArgs) {
+void barbeiroTask(void* barbeiro) {
   for (;;) {
-    xSemaphoreTake(semCustomers, portMAX_DELAY / portTICK_PERIOD_MS);
+    xSemaphoreTake(semCliente, portMAX_DELAY / portTICK_PERIOD_MS);
     xSemaphoreTake(semMutex, portMAX_DELAY / portTICK_PERIOD_MS);
-    vPrintString("The barber has customers waiting.\n");
-    customersWatting -= 1;
-    xSemaphoreGive(semBarber);
+    vPrintString("O barbeiro tem clientes esperando!!.\n");
+    clienteEsperando -= 1;
+    xSemaphoreGive(semBarbeiro);
     xSemaphoreGive(semMutex);
-    vPrintString("The barber is cutting the customer's hair.\n");
-    vTaskDelay(halfSec);
+    vPrintString("O barbeiro está cortando o cabelo do cliente.\n");
+    vTaskDelay(umSegundo);
   }
 }
 
-void customerProcedure(void* args) {
+void clienteTask(void* clienteT) {
   for (;;) {
     vTaskDelay(random(200, 1700) / portTICK_PERIOD_MS);
+    
     xSemaphoreTake(semMutex, portMAX_DELAY / portTICK_PERIOD_MS);
-    if (xSemaphoreGive(semCustomers) == pdTRUE) {
-      if (customersWatting > 0) {
-        vPrintString("The barber is cutting hair, customer will wait.\n");
+    
+    if (xSemaphoreGive(semCliente) == pdTRUE) {
+      if (clienteEsperando > 0) {
+        vPrintString("O barbeiro está cortando cabelo, o cliente vai esperar.\n");
       } else {
-        vPrintString("The barbershop is empty, i'm going to wake the barber.\n");
+        vPrintString("A barbearia está vazia, vou acordar o barbeiro.\n");
       }
-      customersWatting += 1;
+      clienteEsperando += 1;
       xSemaphoreGive(semMutex);
-      xSemaphoreTake(semBarber, portMAX_DELAY / portTICK_PERIOD_MS);
-      vPrintString("The barber has cutted my hair.\n");
+      xSemaphoreTake(semBarbeiro, portMAX_DELAY / portTICK_PERIOD_MS);
+      vPrintString("O barbeiro cortou meu cabelo.\n");
     } else {
-      vPrintString("The barbershop is full, the customer is leaving.\n");
+      vPrintString("A barbearia está cheia, o cliente está saindo.\n");
       xSemaphoreGive(semMutex);
     }
   }
 }
-
-//void customerTask(void* customerArgs) {
-//  vPrintString("Customer.\n");
-//
-//  vTaskDelay(halfSec);
-//
-//  for (;;) {
-//
-//
-//    vTaskDelay(1000 / portTICK_PERIOD_MS);
-////    vTaskDelay(random(100, 700) / portTICK_PERIOD_MS);
-//
-//    vPrintString("Aqui estou\n");
-//    if( xTaskCreate(customerProcedure, "Curoc", 100, NULL, 1, NULL) == pdFAIL ) {
-//      vPrintString("Falho para Criar\n");
-//    }
-//
-////    vPrintString("Task Criada.\n");
-//  }
-//}
-
-
 
 void vApplicationIdleHook( void ) {
   vPrintString("Rodando\n");
