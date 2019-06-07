@@ -12,7 +12,7 @@ uint8_t clienteEsperando;
 SemaphoreHandle_t semCliente, semBarbeiro, semMutex;
 
 void barbeiroTask(void* barbeiro);
-//void customerTask(void* cliente);
+
 void clienteTask(void* clienteT);
 
 void setup() {
@@ -23,7 +23,7 @@ void setup() {
     for (;;) {}
   }
 
-  for (portSHORT i = 0;  i < cliente; i++) {
+  for (uint8_t i = 0;  i < cliente; i++) {
     if (xTaskCreate(clienteTask, "cliente", 100, NULL, 1, NULL) == pdFAIL) {
       vPrintString("Houve problema de criação de clienteTask.\n");
     }
@@ -47,13 +47,14 @@ void setup() {
 
 void barbeiroTask(void* barbeiro) {
   for (;;) {
-    xSemaphoreTake(semCliente, portMAX_DELAY / portTICK_PERIOD_MS);
-    xSemaphoreTake(semMutex, portMAX_DELAY / portTICK_PERIOD_MS);
+    xSemaphoreTake(semCliente, portMAX_DELAY);
+    xSemaphoreTake(semMutex, portMAX_DELAY);
     vPrintString("O barbeiro tem clientes esperando!!.\n");
     clienteEsperando -= 1;
     xSemaphoreGive(semBarbeiro);
     xSemaphoreGive(semMutex);
-    vPrintString("O barbeiro está cortando o cabelo do cliente.\n");
+    vPrintString("O barbeiro está cortando \n");
+   
     vTaskDelay(umSegundo);
   }
 }
@@ -62,27 +63,21 @@ void clienteTask(void* clienteT) {
   for (;;) {
     vTaskDelay(random(200, 1700) / portTICK_PERIOD_MS);
     
-    xSemaphoreTake(semMutex, portMAX_DELAY / portTICK_PERIOD_MS);
+    xSemaphoreTake(semMutex, portMAX_DELAY );
     
-    if (xSemaphoreGive(semCliente) == pdTRUE) {
-      if (clienteEsperando > 0) {
-        vPrintString("O barbeiro está cortando cabelo, o cliente vai esperar.\n");
-      } else {
-        vPrintString("A barbearia está vazia, vou acordar o barbeiro.\n");
-      }
-      clienteEsperando += 1;
-      xSemaphoreGive(semMutex);
-      xSemaphoreTake(semBarbeiro, portMAX_DELAY / portTICK_PERIOD_MS);
+    if (clienteEsperando < cadeira) {
+        vPrintString("Vou sentar!!\n");
+        clienteEsperando += 1;
+        xSemaphoreGive(semCliente);
+        xSemaphoreGive(semMutex); //Saindo da região crítica
+      xSemaphoreTake(semBarbeiro, portMAX_DELAY);
       vPrintString("O barbeiro cortou meu cabelo.\n");
+      vPrintString("\n--------------------------------------------\n");
     } else {
       vPrintString("A barbearia está cheia, o cliente está saindo.\n");
       xSemaphoreGive(semMutex);
+      vTaskDelay(umSegundo);
     }
   }
 }
-
-void vApplicationIdleHook( void ) {
-  vPrintString("Rodando\n");
-}
-
 void loop() {}
