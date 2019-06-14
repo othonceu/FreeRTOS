@@ -19,13 +19,13 @@ void setup() {
   Serial.begin(9600);
 
   if (xTaskCreate(barbeiroTask, "Barbeiro", 100, NULL, 1, NULL) == pdFAIL) {
-    vPrintString("Houve problema de criação no barbeiroTask.\n");
-    for (;;) {}
+      vPrintString("Houve problema de criação no barbeiroTask.\n");
+      for (;;) {}
   }
 
   for (uint8_t i = 0;  i < cliente; i++) {
-    if (xTaskCreate(clienteTask, "cliente", 100, NULL, 1, NULL) == pdFAIL) {
-      vPrintString("Houve problema de criação de clienteTask.\n");
+    if (xTaskCreate(clienteTask, "cliente", 120, NULL, 1, NULL) == pdFAIL) {
+       vPrintString("Houve problema de criação de clienteTask.\n");
     }
   }
 
@@ -35,7 +35,7 @@ void setup() {
   clienteEsperando = 0;
 
   if (semCliente == NULL || semBarbeiro == NULL || semMutex == NULL) {
-    vPrintString("Houve problema na criação do semáfaro.\n");
+   // vPrintString("Houve problema na criação do semáfaro.\n");
     for (;;) {}
   }
 
@@ -46,14 +46,19 @@ void setup() {
 }
 
 void barbeiroTask(void* barbeiro) {
+  uint8_t flag = 0;
   for (;;) {
     xSemaphoreTake(semCliente, portMAX_DELAY);
     xSemaphoreTake(semMutex, portMAX_DELAY);
-    vPrintString("O barbeiro tem clientes esperando!!.\n");
+   
+    if(flag == 0){
+      vPrintString("Acordou!!\n");
+      flag = 1;
+     }
     clienteEsperando -= 1;
     xSemaphoreGive(semBarbeiro);
     xSemaphoreGive(semMutex);
-    vPrintString("O barbeiro está cortando \n");
+    
    
     vTaskDelay(umSegundo);
   }
@@ -66,15 +71,17 @@ void clienteTask(void* clienteT) {
     xSemaphoreTake(semMutex, portMAX_DELAY );
     
     if (clienteEsperando < cadeira) {
-        vPrintString("Vou sentar!!\n");
+       
         clienteEsperando += 1;
+        vPrintStringAndNumber("AgoraNº:",clienteEsperando);
         xSemaphoreGive(semCliente);
         xSemaphoreGive(semMutex); //Saindo da região crítica
       xSemaphoreTake(semBarbeiro, portMAX_DELAY);
-      vPrintString("O barbeiro cortou meu cabelo.\n");
-      vPrintString("\n--------------------------------------------\n");
+     
+      vPrintStringAndNumber("CortouNº:",clienteEsperando);
+     
     } else {
-      vPrintString("A barbearia está cheia, o cliente está saindo.\n");
+      vPrintString("Cheio indo embora\n");
       xSemaphoreGive(semMutex);
       vTaskDelay(umSegundo);
     }

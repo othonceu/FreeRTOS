@@ -26,7 +26,7 @@ void setup() {
   }
 
   for (uint8_t i = 0;  i < cliente; i++) {
-    if (xTaskCreate(clienteTask, "cliente", 100, NULL, 1, NULL) == pdFAIL) {
+    if (xTaskCreate(clienteTask, "cliente", 120, NULL, 1, NULL) == pdFAIL) {
       vPrintString("Houve problema de criação de clienteTask.\n");
     }
   }
@@ -48,14 +48,20 @@ void setup() {
 }
 
 void barbeiroTask(void* barbeiro) {
+  uint8_t flag = 0;
   for (;;) {
     ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
     xSemaphoreTake(semMutex, portMAX_DELAY);   
-    vPrintString("O barbeiro tem clientes esperando!!.\n");
+    
+     if(flag == 0){
+      vPrintString("Acordou!!\n");
+      flag = 1;
+     }
+     
     clienteEsperando -= 1;
     xSemaphoreGive(semBarbeiro);
     xSemaphoreGive(semMutex);
-    vPrintString("O barbeiro está cortando \n");
+   
     
     vTaskDelay(umSegundo);
   }
@@ -68,16 +74,19 @@ void clienteTask(void* clienteT) {
     xSemaphoreTake(semMutex, portMAX_DELAY );
     
     if (clienteEsperando < cadeira) {
-        vPrintString("Vou sentar!!\n");
+        
         clienteEsperando += 1;  
+        vPrintStringAndNumber("AgoraNº:",clienteEsperando);
         xTaskNotifyGive(barbeiro1);
+        
         xSemaphoreGive(semMutex); //Saindo da região crítica
         
       xSemaphoreTake(semBarbeiro, portMAX_DELAY);
-      vPrintString("O barbeiro cortou meu cabelo.\n");
-      vPrintString("\n--------------------------------------------\n");
+      vPrintStringAndNumber("CortouNº:",clienteEsperando);
+     
+     
     } else {
-      vPrintString("A barbearia está cheia, o cliente está saindo.\n");
+      vPrintString("Cheio indo embora\n");
       xSemaphoreGive(semMutex);
       
     }
