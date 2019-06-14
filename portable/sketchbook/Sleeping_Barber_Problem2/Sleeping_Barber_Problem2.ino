@@ -4,9 +4,13 @@
 #include "semphr.h"
 
 #define cadeira 2
-#define cliente 3
+#define cliente 4
 
-
+const char *str[4] = {"Acordou!!\n", 
+                      "AgoraNº: ", 
+                      "CortouNº:",
+                      "Cheio indo embora\n"
+                      };
 
 void vPrintString( const char *pcString )
 {
@@ -16,8 +20,8 @@ void vPrintString( const char *pcString )
   {
       Serial.print(pcString);
       Serial.flush();
-  //  printf( "%s", pcString );
-  //  fflush( stdout );
+      printf( "%s", pcString );
+      fflush( stdout );
   }
   xTaskResumeAll();
 
@@ -50,8 +54,6 @@ void vPrintStringAndNumber( const char *pcString, unsigned portLONG ulValue )
     vTaskEndScheduler();
   }
 }
-
-
 const TickType_t umSegundo = 1000 / portTICK_PERIOD_MS;
 
 uint8_t clienteEsperando;
@@ -62,7 +64,8 @@ EventGroupHandle_t semCliente;
 void eventGroupGive(EventGroupHandle_t sem) {
   EventBits_t bits = xEventGroupGetBits(sem);
   xEventGroupClearBits(sem, bits);
-  //bits = (EventBits_t)((int)bits + 1);
+
+  
   if (!bits) {
     bits = 1;
   } else {
@@ -73,7 +76,6 @@ void eventGroupGive(EventGroupHandle_t sem) {
 
 void eventGroupTake(EventGroupHandle_t sem) {
   EventBits_t bits = xEventGroupWaitBits(sem, 0xff, pdTRUE, pdFALSE, portMAX_DELAY);
-  //bits = (EventBits_t)max(0, (int)bits - 1);
   bits >>= 1;
   xEventGroupSetBits(sem, bits);
 }
@@ -85,17 +87,16 @@ void clienteTask(void* clienteT);
 void setup() {
   Serial.begin(9600);
 
-  if (xTaskCreate(barbeiroTask, "Barbeiro",100, NULL, 2, NULL) == pdFAIL) {
+  if (xTaskCreate(barbeiroTask, "Barbeiro",60, NULL, 2, NULL) == pdFAIL) {
     vPrintString("Houve problema de criação no barbeiroTask.\n");
     for (;;) {}
   }
 
   for (uint8_t i = 0;  i < cliente; i++) {
-    if (xTaskCreate(clienteTask, "cliente", 120, NULL, 1, NULL) == pdFAIL) {
+    if (xTaskCreate(clienteTask, "cliente", 100, NULL, 1, NULL) == pdFAIL) {
       vPrintString("Houve problema de criação de clienteTask.\n");
     }
   }
-
   semCliente = xEventGroupCreate();
   semBarbeiro = xSemaphoreCreateBinary();
   semMutex = xSemaphoreCreateMutex();
@@ -114,20 +115,23 @@ void setup() {
 }
 
 void barbeiroTask(void* barbeiro) {
+  uint8_t flag = 0;
   for (;;) {
+    
     eventGroupTake(semCliente);
 
    
     xSemaphoreTake(semMutex, portMAX_DELAY);
-    
+
+     if(flag == 0){
+     MostraMensagem(0,clienteEsperando);
+      flag = 1;
+     }
     clienteEsperando -= 1;
-    if(clienteEsperando == 0){
-    vPrintStringAndNumber("Barbeiro acordando !! |clientes esperando!! |Nº cadeira : ",clienteEsperando+1);
-    }
     xSemaphoreGive(semBarbeiro);
     xSemaphoreGive(semMutex);
-    vPrintString("O barbeiro está cortando \n");
-   
+
+    
     vTaskDelay(umSegundo);
   }
 }
@@ -138,26 +142,44 @@ void clienteTask(void* clienteT) {
     
     xSemaphoreTake(semMutex, portMAX_DELAY );
     
-    if (clienteEsperando <= cadeira) {
+    if (clienteEsperando < cadeira) {
        
         clienteEsperando += 1;
-        //xSemaphoreGive(semCliente);
+        MostraMensagem(1,clienteEsperando);
         eventGroupGive(semCliente);
+
+        xSemaphoreGive(semMutex);         //Saindo da região crítica
+        xSemaphoreTake(semBarbeiro, portMAX_DELAY);
+
         
-        xSemaphoreGive(semMutex); //Saindo da região crítica
-      xSemaphoreTake(semBarbeiro, portMAX_DELAY);
-      
-      vPrintStringAndNumber("Cortou meu cabelo Nº cadeira: ",clienteEsperando);
-       
-      
-      
-      vPrintString("\n--------------------------------------------\n");
-    } else {
-      vPrintString("A barbearia está cheia, o cliente está saindo.\n");
-      xSemaphoreGive(semMutex);
+        MostraMensagem(2,clienteEsperando);
+    
       vTaskDelay(umSegundo);
+   
+    } else{
+     
+      MostraMensagem(3,clienteEsperando);
+      xSemaphoreGive(semMutex);
+      
     }
   }
 }
+
+void MostraMensagem(uint8_t i,uint8_t clienteEsperando) {
+
+  if(i==0)
+  vPrintString(str[i]);
+  if(i==1)  
+  vPrintStringAndNumber(str[i],clienteEsperando);
+  if(i==2)  
+  vPrintStringAndNumber(str[i],clienteEsperando);
+  if(i==3)  
+  vPrintString(str[i]);
+ 
+}
+
+
+
+
 
 void loop() {}
